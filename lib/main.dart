@@ -1,52 +1,33 @@
-import 'package:flutter/material.dart';
+import 'dart:io';
 
-void main() {
-  runApp(const MyApp());
-}
+import 'package:esc_pos_bluetooth_plus/esc_pos_bluetooth_plus.dart';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
+import 'package:flutter/material.dart' hide Image;
+import 'package:flutter/services.dart';
+import 'package:image/image.dart';
+import 'package:intl/intl.dart';
+import 'package:oktoast/oktoast.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+    return OKToast(
+      child: MaterialApp(
+        title: 'Bluetooth demo',
+        theme: ThemeData(primarySwatch: Colors.blue),
+        home: MyHomePage(title: 'Bluetooth demo'),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
   final String title;
 
   @override
@@ -54,69 +35,420 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  PrinterBluetoothManager printerManager = PrinterBluetoothManager();
+  List<PrinterBluetooth> _devices = [];
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+  @override
+  void initState() {
+    super.initState();
+
+    printerManager.scanResults.listen((devices) async {
+      // print('UI: Devices found ${devices.length}');
+      setState(() {
+        _devices = devices;
+      });
     });
+  }
+
+  Future<bool> _checkPermissions() async {
+    if (Platform.isAndroid) {
+      Map<Permission, PermissionStatus> statuses = await [
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+        Permission.location,
+      ].request();
+
+      // Check if all permissions are granted
+      return statuses.values.every((status) => status.isGranted);
+    }
+    return true; // iOS handles permissions differently
+  }
+
+  void _startScanDevices() async {
+    // Request permissions before scanning
+    bool hasPermissions = await _checkPermissions();
+
+    if (!hasPermissions) {
+      showToast('Bluetooth permissions are required to scan for devices');
+      return;
+    }
+
+    setState(() {
+      _devices = [];
+    });
+    printerManager.startScan(Duration(seconds: 4));
+  }
+
+  void _stopScanDevices() {
+    printerManager.stopScan();
+  }
+
+  Future<List<int>> demoReceipt(
+    PaperSize paper,
+    CapabilityProfile profile,
+  ) async {
+    final Generator ticket = Generator(paper, profile);
+    List<int> bytes = [];
+
+    // Print image
+    // final ByteData data = await rootBundle.load('assets/rabbit_black.jpg');
+    // final Uint8List imageBytes = data.buffer.asUint8List();
+    // final Image? image = decodeImage(imageBytes);
+    // bytes += ticket.image(image);
+
+    bytes += ticket.text(
+      'GROCERYLY',
+      styles: PosStyles(
+        align: PosAlign.center,
+        height: PosTextSize.size2,
+        width: PosTextSize.size2,
+      ),
+      linesAfter: 1,
+    );
+
+    bytes += ticket.text(
+      '889  Watson Lane',
+      styles: PosStyles(align: PosAlign.center),
+    );
+    bytes += ticket.text(
+      'New Braunfels, TX',
+      styles: PosStyles(align: PosAlign.center),
+    );
+    bytes += ticket.text(
+      'Tel: 830-221-1234',
+      styles: PosStyles(align: PosAlign.center),
+    );
+    bytes += ticket.text(
+      'Web: www.example.com',
+      styles: PosStyles(align: PosAlign.center),
+      linesAfter: 1,
+    );
+
+    bytes += ticket.hr();
+    bytes += ticket.row([
+      PosColumn(text: 'Qty', width: 1),
+      PosColumn(text: 'Item', width: 7),
+      PosColumn(
+        text: 'Price',
+        width: 2,
+        styles: PosStyles(align: PosAlign.right),
+      ),
+      PosColumn(
+        text: 'Total',
+        width: 2,
+        styles: PosStyles(align: PosAlign.right),
+      ),
+    ]);
+
+    bytes += ticket.row([
+      PosColumn(text: '2', width: 1),
+      PosColumn(text: 'ONION RINGS', width: 7),
+      PosColumn(
+        text: '0.99',
+        width: 2,
+        styles: PosStyles(align: PosAlign.right),
+      ),
+      PosColumn(
+        text: '1.98',
+        width: 2,
+        styles: PosStyles(align: PosAlign.right),
+      ),
+    ]);
+    bytes += ticket.row([
+      PosColumn(text: '1', width: 1),
+      PosColumn(text: 'PIZZA', width: 7),
+      PosColumn(
+        text: '3.45',
+        width: 2,
+        styles: PosStyles(align: PosAlign.right),
+      ),
+      PosColumn(
+        text: '3.45',
+        width: 2,
+        styles: PosStyles(align: PosAlign.right),
+      ),
+    ]);
+    bytes += ticket.row([
+      PosColumn(text: '1', width: 1),
+      PosColumn(text: 'SPRING ROLLS', width: 7),
+      PosColumn(
+        text: '2.99',
+        width: 2,
+        styles: PosStyles(align: PosAlign.right),
+      ),
+      PosColumn(
+        text: '2.99',
+        width: 2,
+        styles: PosStyles(align: PosAlign.right),
+      ),
+    ]);
+    bytes += ticket.row([
+      PosColumn(text: '3', width: 1),
+      PosColumn(text: 'CRUNCHY STICKS', width: 7),
+      PosColumn(
+        text: '0.85',
+        width: 2,
+        styles: PosStyles(align: PosAlign.right),
+      ),
+      PosColumn(
+        text: '2.55',
+        width: 2,
+        styles: PosStyles(align: PosAlign.right),
+      ),
+    ]);
+    bytes += ticket.hr();
+
+    bytes += ticket.row([
+      PosColumn(
+        text: 'TOTAL',
+        width: 6,
+        styles: PosStyles(height: PosTextSize.size2, width: PosTextSize.size2),
+      ),
+      PosColumn(
+        text: '\$10.97',
+        width: 6,
+        styles: PosStyles(
+          align: PosAlign.right,
+          height: PosTextSize.size2,
+          width: PosTextSize.size2,
+        ),
+      ),
+    ]);
+
+    bytes += ticket.hr(ch: '=', linesAfter: 1);
+
+    bytes += ticket.row([
+      PosColumn(
+        text: 'Cash',
+        width: 7,
+        styles: PosStyles(align: PosAlign.right, width: PosTextSize.size2),
+      ),
+      PosColumn(
+        text: '\$15.00',
+        width: 5,
+        styles: PosStyles(align: PosAlign.right, width: PosTextSize.size2),
+      ),
+    ]);
+    bytes += ticket.row([
+      PosColumn(
+        text: 'Change',
+        width: 7,
+        styles: PosStyles(align: PosAlign.right, width: PosTextSize.size2),
+      ),
+      PosColumn(
+        text: '\$4.03',
+        width: 5,
+        styles: PosStyles(align: PosAlign.right, width: PosTextSize.size2),
+      ),
+    ]);
+
+    bytes += ticket.feed(2);
+    bytes += ticket.text(
+      'Thank you!',
+      styles: PosStyles(align: PosAlign.center, bold: true),
+    );
+
+    final now = DateTime.now();
+    final formatter = DateFormat('MM/dd/yyyy H:m');
+    final String timestamp = formatter.format(now);
+    bytes += ticket.text(
+      timestamp,
+      styles: PosStyles(align: PosAlign.center),
+      linesAfter: 2,
+    );
+
+    // Print QR Code from image
+    // try {
+    //   const String qrData = 'example.com';
+    //   const double qrSize = 200;
+    //   final uiImg = await QrPainter(
+    //     data: qrData,
+    //     version: QrVersions.auto,
+    //     gapless: false,
+    //   ).toImageData(qrSize);
+    //   final dir = await getTemporaryDirectory();
+    //   final pathName = '${dir.path}/qr_tmp.png';
+    //   final qrFile = File(pathName);
+    //   final imgFile = await qrFile.writeAsBytes(uiImg.buffer.asUint8List());
+    //   final img = decodeImage(imgFile.readAsBytesSync());
+
+    //   bytes += ticket.image(img);
+    // } catch (e) {
+    //   print(e);
+    // }
+
+    // Print QR Code using native function
+    // bytes += ticket.qrcode('example.com');
+
+    ticket.feed(2);
+    ticket.cut();
+    return bytes;
+  }
+
+  Future<List<int>> testTicket(
+    PaperSize paper,
+    CapabilityProfile profile,
+  ) async {
+    final Generator generator = Generator(paper, profile);
+    List<int> bytes = [];
+
+    bytes += generator.text(
+      'Regular: aA bB cC dD eE fF gG hH iI jJ kK lL mM nN oO pP qQ rR sS tT uU vV wW xX yY zZ',
+    );
+    // bytes += generator.text('Special 1: àÀ èÈ éÉ ûÛ üÜ çÇ ôÔ',
+    //     styles: PosStyles(codeTable: PosCodeTable.westEur));
+    // bytes += generator.text('Special 2: blåbærgrød',
+    //     styles: PosStyles(codeTable: PosCodeTable.westEur));
+
+    bytes += generator.text('Bold text', styles: PosStyles(bold: true));
+    bytes += generator.text('Reverse text', styles: PosStyles(reverse: true));
+    bytes += generator.text(
+      'Underlined text',
+      styles: PosStyles(underline: true),
+      linesAfter: 1,
+    );
+    bytes += generator.text(
+      'Align left',
+      styles: PosStyles(align: PosAlign.left),
+    );
+    bytes += generator.text(
+      'Align center',
+      styles: PosStyles(align: PosAlign.center),
+    );
+    bytes += generator.text(
+      'Align right',
+      styles: PosStyles(align: PosAlign.right),
+      linesAfter: 1,
+    );
+
+    bytes += generator.row([
+      PosColumn(
+        text: 'col3',
+        width: 3,
+        styles: PosStyles(align: PosAlign.center, underline: true),
+      ),
+      PosColumn(
+        text: 'col6',
+        width: 6,
+        styles: PosStyles(align: PosAlign.center, underline: true),
+      ),
+      PosColumn(
+        text: 'col3',
+        width: 3,
+        styles: PosStyles(align: PosAlign.center, underline: true),
+      ),
+    ]);
+
+    bytes += generator.text(
+      'Text size 200%',
+      styles: PosStyles(height: PosTextSize.size2, width: PosTextSize.size2),
+    );
+
+    // Print image
+    final ByteData data = await rootBundle.load('assets/logo.png');
+    final Uint8List buf = data.buffer.asUint8List();
+    final Image image = decodeImage(buf)!;
+    bytes += generator.image(image);
+    // Print image using alternative commands
+    // bytes += generator.imageRaster(image);
+    // bytes += generator.imageRaster(image, imageFn: PosImageFn.graphics);
+
+    // Print barcode
+    final List<int> barData = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 4];
+    bytes += generator.barcode(Barcode.upcA(barData));
+
+    // Print mixed (chinese + latin) text. Only for printers supporting Kanji mode
+    // bytes += generator.text(
+    //   'hello ! 中文字 # world @ éphémère &',
+    //   styles: PosStyles(codeTable: PosCodeTable.westEur),
+    //   containsChinese: true,
+    // );
+
+    bytes += generator.feed(2);
+
+    bytes += generator.cut();
+    return bytes;
+  }
+
+  void _testPrint(PrinterBluetooth printer) async {
+    printerManager.selectPrinter(printer);
+
+    // TODO Don't forget to choose printer's paper
+    const PaperSize paper = PaperSize.mm80;
+    final profile = await CapabilityProfile.load();
+
+    // TEST PRINT
+    // final PosPrintResult res =
+    // await printerManager.printTicket(await testTicket(paper));
+
+    // DEMO RECEIPT
+    final PosPrintResult res = await printerManager.printTicket(
+      (await demoReceipt(paper, profile)),
+    );
+
+    showToast(res.msg);
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+      appBar: AppBar(title: Text(widget.title)),
+      body: ListView.builder(
+        itemCount: _devices.length,
+        itemBuilder: (BuildContext context, int index) {
+          return InkWell(
+            onTap: () => _testPrint(_devices[index]),
+            child: Column(
+              children: <Widget>[
+                Container(
+                  height: 60,
+                  padding: EdgeInsets.only(left: 10),
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    children: <Widget>[
+                      Icon(Icons.print),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            Text(_devices[index].name ?? ''),
+                            Text(_devices[index].address!),
+                            Text(
+                              'Click to print a test receipt',
+                              style: TextStyle(color: Colors.grey[700]),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+      floatingActionButton: StreamBuilder<bool>(
+        stream: printerManager.isScanningStream,
+        initialData: false,
+        builder: (c, snapshot) {
+          if (snapshot.data!) {
+            return FloatingActionButton(
+              onPressed: _stopScanDevices,
+              backgroundColor: Colors.red,
+              child: Icon(Icons.stop),
+            );
+          } else {
+            return FloatingActionButton(
+              onPressed: _startScanDevices,
+              child: Icon(Icons.search),
+            );
+          }
+        },
+      ),
     );
   }
 }
