@@ -17,6 +17,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.0"
+  bluetooth_print_plus:
+    dependency: "direct main"
+    description:
+      name: bluetooth_print_plus
+      sha256: "9d059064e8d7d8af9dbd1bf9b4c964428cb567d2f372a85177d9ba0f4e743d71"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.4.6"
   boolean_selector:
     dependency: transitive
     description:
@@ -73,15 +81,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.8"
-  esc_pos_bluetooth_plus:
-    dependency: "direct main"
-    description:
-      path: "."
-      ref: HEAD
-      resolved-ref: "99912260d9380ee16ead567f2ec2b8b76126aa08"
-      url: "https://github.com/e-ManueI/esc_pos_bluetooth_plus.git"
-    source: git
-    version: "0.4.1"
   esc_pos_utils_plus:
     dependency: "direct main"
     description:
@@ -111,15 +110,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  flutter_bluetooth_basic_updated:
-    dependency: transitive
-    description:
-      path: "."
-      ref: HEAD
-      resolved-ref: "5f3d24fcb74271e6254222aba39f69f5168dcd0b"
-      url: "https://github.com/CidQu/flutter_bluetooth_basic/"
-    source: git
-    version: "0.1.9"
   flutter_lints:
     dependency: "direct dev"
     description:
@@ -162,14 +152,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.20.2"
-  json_annotation:
-    dependency: transitive
-    description:
-      name: json_annotation
-      sha256: "1ce844379ca14835a50d2f019a3099f419082cfdd231cd86a142af94dd5c6bb1"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.9.0"
   leak_tracker:
     dependency: transitive
     description:
@@ -390,10 +372,10 @@ packages:
     dependency: transitive
     description:
       name: rxdart
-      sha256: "0c7c0cedd93788d996e33041ffecda924cc54389199cde4e6a34b440f50044cb"
+      sha256: "5c3004a4a8dbb94bd4bf5412a4def4acdaa12e12f269737a5751369e12d1a962"
       url: "https://pub.dev"
     source: hosted
-    version: "0.27.7"
+    version: "0.28.0"
   sky_engine:
     dependency: transitive
     description: flutter
